@@ -10,8 +10,12 @@ import * as tar from "tar";
 
 // Railway commonly sets PORT=8080 for HTTP services.
 const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
-const STATE_DIR = process.env.CLAWDBOT_STATE_DIR?.trim() || path.join(os.homedir(), ".clawdbot");
-const WORKSPACE_DIR = process.env.CLAWDBOT_WORKSPACE_DIR?.trim() || path.join(STATE_DIR, "workspace");
+const STATE_DIR =
+  process.env.CLAWDBOT_STATE_DIR?.trim() ||
+  path.join(os.homedir(), ".clawdbot");
+const WORKSPACE_DIR =
+  process.env.CLAWDBOT_WORKSPACE_DIR?.trim() ||
+  path.join(STATE_DIR, "workspace");
 
 // Protect /setup with a user-provided password.
 const SETUP_PASSWORD = process.env.SETUP_PASSWORD?.trim();
@@ -44,12 +48,16 @@ const CLAWDBOT_GATEWAY_TOKEN = resolveGatewayToken();
 process.env.CLAWDBOT_GATEWAY_TOKEN = CLAWDBOT_GATEWAY_TOKEN;
 
 // Where the gateway will listen internally (we proxy to it).
-const INTERNAL_GATEWAY_PORT = Number.parseInt(process.env.INTERNAL_GATEWAY_PORT ?? "18789", 10);
+const INTERNAL_GATEWAY_PORT = Number.parseInt(
+  process.env.INTERNAL_GATEWAY_PORT ?? "18789",
+  10,
+);
 const INTERNAL_GATEWAY_HOST = process.env.INTERNAL_GATEWAY_HOST ?? "127.0.0.1";
 const GATEWAY_TARGET = `http://${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}`;
 
 // Always run the built-from-source CLI entry directly to avoid PATH/global-install mismatches.
-const CLAWDBOT_ENTRY = process.env.CLAWDBOT_ENTRY?.trim() || "/clawdbot/dist/entry.js";
+const CLAWDBOT_ENTRY =
+  process.env.CLAWDBOT_ENTRY?.trim() || "/clawdbot/dist/entry.js";
 const CLAWDBOT_NODE = process.env.CLAWDBOT_NODE?.trim() || "node";
 
 function clawArgs(args) {
@@ -57,7 +65,10 @@ function clawArgs(args) {
 }
 
 function configPath() {
-  return process.env.CLAWDBOT_CONFIG_PATH?.trim() || path.join(STATE_DIR, "clawdbot.json");
+  return (
+    process.env.CLAWDBOT_CONFIG_PATH?.trim() ||
+    path.join(STATE_DIR, "moltbot.json")
+  );
 }
 
 function isConfigured() {
@@ -168,7 +179,9 @@ function requireSetupAuth(req, res, next) {
     return res
       .status(500)
       .type("text/plain")
-      .send("SETUP_PASSWORD is not set. Set it in Railway Variables before using /setup.");
+      .send(
+        "SETUP_PASSWORD is not set. Set it in Railway Variables before using /setup.",
+      );
   }
 
   const header = req.headers.authorization || "";
@@ -197,7 +210,9 @@ app.get("/setup/healthz", (_req, res) => res.json({ ok: true }));
 app.get("/setup/app.js", requireSetupAuth, (_req, res) => {
   // Serve JS for /setup (kept external to avoid inline encoding/template issues)
   res.type("application/javascript");
-  res.send(fs.readFileSync(path.join(process.cwd(), "src", "setup-app.js"), "utf8"));
+  res.send(
+    fs.readFileSync(path.join(process.cwd(), "src", "setup-app.js"), "utf8"),
+  );
 });
 
 app.get("/setup", requireSetupAuth, (_req, res) => {
@@ -292,56 +307,114 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
 
 app.get("/setup/api/status", requireSetupAuth, async (_req, res) => {
   const version = await runCmd(CLAWDBOT_NODE, clawArgs(["--version"]));
-  const channelsHelp = await runCmd(CLAWDBOT_NODE, clawArgs(["channels", "add", "--help"]));
+  const channelsHelp = await runCmd(
+    CLAWDBOT_NODE,
+    clawArgs(["channels", "add", "--help"]),
+  );
 
   // We reuse Clawdbot's own auth-choice grouping logic indirectly by hardcoding the same group defs.
   // This is intentionally minimal; later we can parse the CLI help output to stay perfectly in sync.
   const authGroups = [
-    { value: "openai", label: "OpenAI", hint: "Codex OAuth + API key", options: [
-      { value: "codex-cli", label: "OpenAI Codex OAuth (Codex CLI)" },
-      { value: "openai-codex", label: "OpenAI Codex (ChatGPT OAuth)" },
-      { value: "openai-api-key", label: "OpenAI API key" }
-    ]},
-    { value: "anthropic", label: "Anthropic", hint: "Claude Code CLI + API key", options: [
-      { value: "claude-cli", label: "Anthropic token (Claude Code CLI)" },
-      { value: "token", label: "Anthropic token (paste setup-token)" },
-      { value: "apiKey", label: "Anthropic API key" }
-    ]},
-    { value: "google", label: "Google", hint: "Gemini API key + OAuth", options: [
-      { value: "gemini-api-key", label: "Google Gemini API key" },
-      { value: "google-antigravity", label: "Google Antigravity OAuth" },
-      { value: "google-gemini-cli", label: "Google Gemini CLI OAuth" }
-    ]},
-    { value: "openrouter", label: "OpenRouter", hint: "API key", options: [
-      { value: "openrouter-api-key", label: "OpenRouter API key" }
-    ]},
-    { value: "ai-gateway", label: "Vercel AI Gateway", hint: "API key", options: [
-      { value: "ai-gateway-api-key", label: "Vercel AI Gateway API key" }
-    ]},
-    { value: "moonshot", label: "Moonshot AI", hint: "Kimi K2 + Kimi Code", options: [
-      { value: "moonshot-api-key", label: "Moonshot AI API key" },
-      { value: "kimi-code-api-key", label: "Kimi Code API key" }
-    ]},
-    { value: "zai", label: "Z.AI (GLM 4.7)", hint: "API key", options: [
-      { value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" }
-    ]},
-    { value: "minimax", label: "MiniMax", hint: "M2.1 (recommended)", options: [
-      { value: "minimax-api", label: "MiniMax M2.1" },
-      { value: "minimax-api-lightning", label: "MiniMax M2.1 Lightning" }
-    ]},
-    { value: "qwen", label: "Qwen", hint: "OAuth", options: [
-      { value: "qwen-portal", label: "Qwen OAuth" }
-    ]},
-    { value: "copilot", label: "Copilot", hint: "GitHub + local proxy", options: [
-      { value: "github-copilot", label: "GitHub Copilot (GitHub device login)" },
-      { value: "copilot-proxy", label: "Copilot Proxy (local)" }
-    ]},
-    { value: "synthetic", label: "Synthetic", hint: "Anthropic-compatible (multi-model)", options: [
-      { value: "synthetic-api-key", label: "Synthetic API key" }
-    ]},
-    { value: "opencode-zen", label: "OpenCode Zen", hint: "API key", options: [
-      { value: "opencode-zen", label: "OpenCode Zen (multi-model proxy)" }
-    ]}
+    {
+      value: "openai",
+      label: "OpenAI",
+      hint: "Codex OAuth + API key",
+      options: [
+        { value: "codex-cli", label: "OpenAI Codex OAuth (Codex CLI)" },
+        { value: "openai-codex", label: "OpenAI Codex (ChatGPT OAuth)" },
+        { value: "openai-api-key", label: "OpenAI API key" },
+      ],
+    },
+    {
+      value: "anthropic",
+      label: "Anthropic",
+      hint: "Claude Code CLI + API key",
+      options: [
+        { value: "claude-cli", label: "Anthropic token (Claude Code CLI)" },
+        { value: "token", label: "Anthropic token (paste setup-token)" },
+        { value: "apiKey", label: "Anthropic API key" },
+      ],
+    },
+    {
+      value: "google",
+      label: "Google",
+      hint: "Gemini API key + OAuth",
+      options: [
+        { value: "gemini-api-key", label: "Google Gemini API key" },
+        { value: "google-antigravity", label: "Google Antigravity OAuth" },
+        { value: "google-gemini-cli", label: "Google Gemini CLI OAuth" },
+      ],
+    },
+    {
+      value: "openrouter",
+      label: "OpenRouter",
+      hint: "API key",
+      options: [{ value: "openrouter-api-key", label: "OpenRouter API key" }],
+    },
+    {
+      value: "ai-gateway",
+      label: "Vercel AI Gateway",
+      hint: "API key",
+      options: [
+        { value: "ai-gateway-api-key", label: "Vercel AI Gateway API key" },
+      ],
+    },
+    {
+      value: "moonshot",
+      label: "Moonshot AI",
+      hint: "Kimi K2 + Kimi Code",
+      options: [
+        { value: "moonshot-api-key", label: "Moonshot AI API key" },
+        { value: "kimi-code-api-key", label: "Kimi Code API key" },
+      ],
+    },
+    {
+      value: "zai",
+      label: "Z.AI (GLM 4.7)",
+      hint: "API key",
+      options: [{ value: "zai-api-key", label: "Z.AI (GLM 4.7) API key" }],
+    },
+    {
+      value: "minimax",
+      label: "MiniMax",
+      hint: "M2.1 (recommended)",
+      options: [
+        { value: "minimax-api", label: "MiniMax M2.1" },
+        { value: "minimax-api-lightning", label: "MiniMax M2.1 Lightning" },
+      ],
+    },
+    {
+      value: "qwen",
+      label: "Qwen",
+      hint: "OAuth",
+      options: [{ value: "qwen-portal", label: "Qwen OAuth" }],
+    },
+    {
+      value: "copilot",
+      label: "Copilot",
+      hint: "GitHub + local proxy",
+      options: [
+        {
+          value: "github-copilot",
+          label: "GitHub Copilot (GitHub device login)",
+        },
+        { value: "copilot-proxy", label: "Copilot Proxy (local)" },
+      ],
+    },
+    {
+      value: "synthetic",
+      label: "Synthetic",
+      hint: "Anthropic-compatible (multi-model)",
+      options: [{ value: "synthetic-api-key", label: "Synthetic API key" }],
+    },
+    {
+      value: "opencode-zen",
+      label: "OpenCode Zen",
+      hint: "API key",
+      options: [
+        { value: "opencode-zen", label: "OpenCode Zen (multi-model proxy)" },
+      ],
+    },
   ];
 
   res.json({
@@ -373,7 +446,7 @@ function buildOnboardArgs(payload) {
     "--gateway-token",
     CLAWDBOT_GATEWAY_TOKEN,
     "--flow",
-    payload.flow || "quickstart"
+    payload.flow || "quickstart",
   ];
 
   if (payload.authChoice) {
@@ -383,7 +456,7 @@ function buildOnboardArgs(payload) {
     const secret = (payload.authSecret || "").trim();
     const map = {
       "openai-api-key": "--openai-api-key",
-      "apiKey": "--anthropic-api-key",
+      apiKey: "--anthropic-api-key",
       "openrouter-api-key": "--openrouter-api-key",
       "ai-gateway-api-key": "--ai-gateway-api-key",
       "moonshot-api-key": "--moonshot-api-key",
@@ -393,7 +466,7 @@ function buildOnboardArgs(payload) {
       "minimax-api": "--minimax-api-key",
       "minimax-api-lightning": "--minimax-api-key",
       "synthetic-api-key": "--synthetic-api-key",
-      "opencode-zen": "--opencode-zen-api-key"
+      "opencode-zen": "--opencode-zen-api-key",
     };
     const flag = map[payload.authChoice];
     if (flag && secret) {
@@ -437,116 +510,180 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
   try {
     if (isConfigured()) {
       await ensureGatewayRunning();
-      return res.json({ ok: true, output: "Already configured.\nUse Reset setup if you want to rerun onboarding.\n" });
+      return res.json({
+        ok: true,
+        output:
+          "Already configured.\nUse Reset setup if you want to rerun onboarding.\n",
+      });
     }
 
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 
-  const payload = req.body || {};
-  const onboardArgs = buildOnboardArgs(payload);
-  const onboard = await runCmd(CLAWDBOT_NODE, clawArgs(onboardArgs));
+    const payload = req.body || {};
+    const onboardArgs = buildOnboardArgs(payload);
+    const onboard = await runCmd(CLAWDBOT_NODE, clawArgs(onboardArgs));
 
-  let extra = "";
+    let extra = "";
 
-  const ok = onboard.code === 0 && isConfigured();
+    const ok = onboard.code === 0 && isConfigured();
 
-  // Optional channel setup (only after successful onboarding, and only if the installed CLI supports it).
-  if (ok) {
-    // Ensure gateway token is written into config so the browser UI can authenticate reliably.
-    // (We also enforce loopback bind since the wrapper proxies externally.)
-    await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.auth.mode", "token"]));
-    await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.auth.token", CLAWDBOT_GATEWAY_TOKEN]));
-    await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.bind", "loopback"]));
-    await runCmd(CLAWDBOT_NODE, clawArgs(["config", "set", "gateway.port", String(INTERNAL_GATEWAY_PORT)]));
+    // Optional channel setup (only after successful onboarding, and only if the installed CLI supports it).
+    if (ok) {
+      // Ensure gateway token is written into config so the browser UI can authenticate reliably.
+      // (We also enforce loopback bind since the wrapper proxies externally.)
+      await runCmd(
+        CLAWDBOT_NODE,
+        clawArgs(["config", "set", "gateway.auth.mode", "token"]),
+      );
+      await runCmd(
+        CLAWDBOT_NODE,
+        clawArgs([
+          "config",
+          "set",
+          "gateway.auth.token",
+          CLAWDBOT_GATEWAY_TOKEN,
+        ]),
+      );
+      await runCmd(
+        CLAWDBOT_NODE,
+        clawArgs(["config", "set", "gateway.bind", "loopback"]),
+      );
+      await runCmd(
+        CLAWDBOT_NODE,
+        clawArgs([
+          "config",
+          "set",
+          "gateway.port",
+          String(INTERNAL_GATEWAY_PORT),
+        ]),
+      );
 
-    const channelsHelp = await runCmd(CLAWDBOT_NODE, clawArgs(["channels", "add", "--help"]));
-    const helpText = channelsHelp.output || "";
+      const channelsHelp = await runCmd(
+        CLAWDBOT_NODE,
+        clawArgs(["channels", "add", "--help"]),
+      );
+      const helpText = channelsHelp.output || "";
 
-    const supports = (name) => helpText.includes(name);
+      const supports = (name) => helpText.includes(name);
 
-    if (payload.telegramToken?.trim()) {
-      if (!supports("telegram")) {
-        extra += "\n[telegram] skipped (this clawdbot build does not list telegram in `channels add --help`)\n";
-      } else {
-        // Avoid `channels add` here (it has proven flaky across builds); write config directly.
-        const token = payload.telegramToken.trim();
-        const cfgObj = {
-          enabled: true,
-          dmPolicy: "pairing",
-          botToken: token,
-          groupPolicy: "allowlist",
-          streamMode: "partial",
-        };
-        const set = await runCmd(
-          CLAWDBOT_NODE,
-          clawArgs(["config", "set", "--json", "channels.telegram", JSON.stringify(cfgObj)]),
-        );
-        const get = await runCmd(CLAWDBOT_NODE, clawArgs(["config", "get", "channels.telegram"]));
-        extra += `\n[telegram config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
-        extra += `\n[telegram verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
+      if (payload.telegramToken?.trim()) {
+        if (!supports("telegram")) {
+          extra +=
+            "\n[telegram] skipped (this clawdbot build does not list telegram in `channels add --help`)\n";
+        } else {
+          // Avoid `channels add` here (it has proven flaky across builds); write config directly.
+          const token = payload.telegramToken.trim();
+          const cfgObj = {
+            enabled: true,
+            dmPolicy: "pairing",
+            botToken: token,
+            groupPolicy: "allowlist",
+            streamMode: "partial",
+          };
+          const set = await runCmd(
+            CLAWDBOT_NODE,
+            clawArgs([
+              "config",
+              "set",
+              "--json",
+              "channels.telegram",
+              JSON.stringify(cfgObj),
+            ]),
+          );
+          const get = await runCmd(
+            CLAWDBOT_NODE,
+            clawArgs(["config", "get", "channels.telegram"]),
+          );
+          extra += `\n[telegram config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
+          extra += `\n[telegram verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
+        }
       }
-    }
 
-    if (payload.discordToken?.trim()) {
-      if (!supports("discord")) {
-        extra += "\n[discord] skipped (this clawdbot build does not list discord in `channels add --help`)\n";
-      } else {
-        const token = payload.discordToken.trim();
-        const cfgObj = {
-          enabled: true,
-          token,
-          groupPolicy: "allowlist",
-          dm: {
-            policy: "pairing",
-          },
-        };
-        const set = await runCmd(
-          CLAWDBOT_NODE,
-          clawArgs(["config", "set", "--json", "channels.discord", JSON.stringify(cfgObj)]),
-        );
-        const get = await runCmd(CLAWDBOT_NODE, clawArgs(["config", "get", "channels.discord"]));
-        extra += `\n[discord config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
-        extra += `\n[discord verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
+      if (payload.discordToken?.trim()) {
+        if (!supports("discord")) {
+          extra +=
+            "\n[discord] skipped (this clawdbot build does not list discord in `channels add --help`)\n";
+        } else {
+          const token = payload.discordToken.trim();
+          const cfgObj = {
+            enabled: true,
+            token,
+            groupPolicy: "allowlist",
+            dm: {
+              policy: "pairing",
+            },
+          };
+          const set = await runCmd(
+            CLAWDBOT_NODE,
+            clawArgs([
+              "config",
+              "set",
+              "--json",
+              "channels.discord",
+              JSON.stringify(cfgObj),
+            ]),
+          );
+          const get = await runCmd(
+            CLAWDBOT_NODE,
+            clawArgs(["config", "get", "channels.discord"]),
+          );
+          extra += `\n[discord config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
+          extra += `\n[discord verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
+        }
       }
-    }
 
-    if (payload.slackBotToken?.trim() || payload.slackAppToken?.trim()) {
-      if (!supports("slack")) {
-        extra += "\n[slack] skipped (this clawdbot build does not list slack in `channels add --help`)\n";
-      } else {
-        const cfgObj = {
-          enabled: true,
-          botToken: payload.slackBotToken?.trim() || undefined,
-          appToken: payload.slackAppToken?.trim() || undefined,
-        };
-        const set = await runCmd(
-          CLAWDBOT_NODE,
-          clawArgs(["config", "set", "--json", "channels.slack", JSON.stringify(cfgObj)]),
-        );
-        const get = await runCmd(CLAWDBOT_NODE, clawArgs(["config", "get", "channels.slack"]));
-        extra += `\n[slack config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
-        extra += `\n[slack verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
+      if (payload.slackBotToken?.trim() || payload.slackAppToken?.trim()) {
+        if (!supports("slack")) {
+          extra +=
+            "\n[slack] skipped (this clawdbot build does not list slack in `channels add --help`)\n";
+        } else {
+          const cfgObj = {
+            enabled: true,
+            botToken: payload.slackBotToken?.trim() || undefined,
+            appToken: payload.slackAppToken?.trim() || undefined,
+          };
+          const set = await runCmd(
+            CLAWDBOT_NODE,
+            clawArgs([
+              "config",
+              "set",
+              "--json",
+              "channels.slack",
+              JSON.stringify(cfgObj),
+            ]),
+          );
+          const get = await runCmd(
+            CLAWDBOT_NODE,
+            clawArgs(["config", "get", "channels.slack"]),
+          );
+          extra += `\n[slack config] exit=${set.code} (output ${set.output.length} chars)\n${set.output || "(no output)"}`;
+          extra += `\n[slack verify] exit=${get.code} (output ${get.output.length} chars)\n${get.output || "(no output)"}`;
+        }
       }
+
+      // Apply changes immediately.
+      await restartGateway();
     }
 
-    // Apply changes immediately.
-    await restartGateway();
-  }
-
-  return res.status(ok ? 200 : 500).json({
-    ok,
-    output: `${onboard.output}${extra}`,
-  });
+    return res.status(ok ? 200 : 500).json({
+      ok,
+      output: `${onboard.output}${extra}`,
+    });
   } catch (err) {
     console.error("[/setup/api/run] error:", err);
-    return res.status(500).json({ ok: false, output: `Internal error: ${String(err)}` });
+    return res
+      .status(500)
+      .json({ ok: false, output: `Internal error: ${String(err)}` });
   }
 });
 
 app.get("/setup/api/debug", requireSetupAuth, async (_req, res) => {
   const v = await runCmd(CLAWDBOT_NODE, clawArgs(["--version"]));
-  const help = await runCmd(CLAWDBOT_NODE, clawArgs(["channels", "add", "--help"]));
+  const help = await runCmd(
+    CLAWDBOT_NODE,
+    clawArgs(["channels", "add", "--help"]),
+  );
   res.json({
     wrapper: {
       node: process.version,
@@ -555,7 +692,9 @@ app.get("/setup/api/debug", requireSetupAuth, async (_req, res) => {
       workspaceDir: WORKSPACE_DIR,
       configPath: configPath(),
       gatewayTokenFromEnv: Boolean(process.env.CLAWDBOT_GATEWAY_TOKEN?.trim()),
-      gatewayTokenPersisted: fs.existsSync(path.join(STATE_DIR, "gateway.token")),
+      gatewayTokenPersisted: fs.existsSync(
+        path.join(STATE_DIR, "gateway.token"),
+      ),
       railwayCommit: process.env.RAILWAY_GIT_COMMIT_SHA || null,
     },
     clawdbot: {
@@ -570,10 +709,17 @@ app.get("/setup/api/debug", requireSetupAuth, async (_req, res) => {
 app.post("/setup/api/pairing/approve", requireSetupAuth, async (req, res) => {
   const { channel, code } = req.body || {};
   if (!channel || !code) {
-    return res.status(400).json({ ok: false, error: "Missing channel or code" });
+    return res
+      .status(400)
+      .json({ ok: false, error: "Missing channel or code" });
   }
-  const r = await runCmd(CLAWDBOT_NODE, clawArgs(["pairing", "approve", String(channel), String(code)]));
-  return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: r.output });
+  const r = await runCmd(
+    CLAWDBOT_NODE,
+    clawArgs(["pairing", "approve", String(channel), String(code)]),
+  );
+  return res
+    .status(r.code === 0 ? 200 : 500)
+    .json({ ok: r.code === 0, output: r.output });
 });
 
 app.post("/setup/api/reset", requireSetupAuth, async (_req, res) => {
@@ -581,7 +727,9 @@ app.post("/setup/api/reset", requireSetupAuth, async (_req, res) => {
   // Keep credentials/sessions/workspace by default.
   try {
     fs.rmSync(configPath(), { force: true });
-    res.type("text/plain").send("OK - deleted config file. You can rerun setup now.");
+    res
+      .type("text/plain")
+      .send("OK - deleted config file. You can rerun setup now.");
   } catch (err) {
     res.status(500).type("text/plain").send(String(err));
   }
@@ -658,7 +806,10 @@ app.use(async (req, res) => {
     try {
       await ensureGatewayRunning();
     } catch (err) {
-      return res.status(503).type("text/plain").send(`Gateway not ready: ${String(err)}`);
+      return res
+        .status(503)
+        .type("text/plain")
+        .send(`Gateway not ready: ${String(err)}`);
     }
   }
 
@@ -669,10 +820,14 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`[wrapper] listening on :${PORT}`);
   console.log(`[wrapper] state dir: ${STATE_DIR}`);
   console.log(`[wrapper] workspace dir: ${WORKSPACE_DIR}`);
-  console.log(`[wrapper] gateway token: ${CLAWDBOT_GATEWAY_TOKEN ? "(set)" : "(missing)"}`);
+  console.log(
+    `[wrapper] gateway token: ${CLAWDBOT_GATEWAY_TOKEN ? "(set)" : "(missing)"}`,
+  );
   console.log(`[wrapper] gateway target: ${GATEWAY_TARGET}`);
   if (!SETUP_PASSWORD) {
-    console.warn("[wrapper] WARNING: SETUP_PASSWORD is not set; /setup will error.");
+    console.warn(
+      "[wrapper] WARNING: SETUP_PASSWORD is not set; /setup will error.",
+    );
   }
   // Don't start gateway unless configured; proxy will ensure it starts.
 });
