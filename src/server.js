@@ -201,13 +201,15 @@ async function startGateway() {
     OPENCLAW_GATEWAY_TOKEN,
   ];
 
+  // Build gateway environment - exclude wrapper's PORT to prevent conflict
+  const gatewayEnv = { ...process.env };
+  delete gatewayEnv.PORT; // Remove Railway's PORT so gateway uses --port flag
+  gatewayEnv.OPENCLAW_STATE_DIR = STATE_DIR;
+  gatewayEnv.OPENCLAW_WORKSPACE_DIR = WORKSPACE_DIR;
+
   gatewayProc = childProcess.spawn(OPENCLAW_NODE, clawArgs(args), {
     stdio: "inherit",
-    env: {
-      ...process.env,
-      OPENCLAW_STATE_DIR: STATE_DIR,
-      OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
-    },
+    env: gatewayEnv,
   });
 
   console.log(`[gateway] starting with command: ${OPENCLAW_NODE} ${clawArgs(args).join(" ")}`);
