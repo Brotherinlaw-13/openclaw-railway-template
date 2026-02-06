@@ -154,6 +154,19 @@ async function startGateway() {
     clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN]),
   );
 
+  console.log(`[gateway] Token sync result: exit code ${syncResult.code}`);
+
+  // Also sync the gateway port to config - Openclaw ignores --port flag and reads from config
+  console.log(`[gateway] Syncing gateway port to config: ${INTERNAL_GATEWAY_PORT}`);
+  const portSyncResult = await runCmd(
+    OPENCLAW_NODE,
+    clawArgs(["config", "set", "gateway.port", String(INTERNAL_GATEWAY_PORT)]),
+  );
+  console.log(`[gateway] Port sync result: exit code ${portSyncResult.code}`);
+  if (portSyncResult.output?.trim()) {
+    console.log(`[gateway] Port sync output: ${portSyncResult.output}`);
+  }
+
   console.log(`[gateway] Sync result: exit code ${syncResult.code}`);
   if (syncResult.output?.trim()) {
     console.log(`[gateway] Sync output: ${syncResult.output}`);
