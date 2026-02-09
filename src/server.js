@@ -320,9 +320,9 @@ app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 
 // Gmail Pub/Sub push notifications → spawn isolated agent session to process email
-// Dedup: track recently processed historyIds to avoid double-processing
-const recentHistoryIds = new Set();
-const DEDUP_TTL_MS = 30_000; // 30 seconds
+// Dedup: only process one notification per cooldown window
+let lastGmailPushMs = 0;
+const GMAIL_PUSH_COOLDOWN_MS = 30_000; // 30 seconds
 
 app.post("/hooks/gmail-push", async (req, res) => {
   try {
@@ -332,13 +332,13 @@ app.post("/hooks/gmail-push", async (req, res) => {
     const historyId = decoded.historyId || "unknown";
     const emailAddress = decoded.emailAddress || "rooktheai@gmail.com";
 
-    // Dedup: skip if we already processed this historyId recently
-    if (recentHistoryIds.has(historyId)) {
-      console.log(`[gmail-push] Duplicate historyId ${historyId}, skipping`);
+    // Dedup: only process one push per cooldown window
+    const now = Date.now();
+    if (now - lastGmailPushMs < GMAIL_PUSH_COOLDOWN_MS) {
+      console.log(`[gmail-push] Cooldown active (${Math.round((GMAIL_PUSH_COOLDOWN_MS - (now - lastGmailPushMs)) / 1000)}s left), skipping historyId ${historyId}`);
       return res.status(200).json({ ok: true, dedup: true });
     }
-    recentHistoryIds.add(historyId);
-    setTimeout(() => recentHistoryIds.delete(historyId), DEDUP_TTL_MS);
+    lastGmailPushMs = now;
 
     console.log(`[gmail-push] Notification for ${emailAddress}, historyId: ${historyId}`);
 
