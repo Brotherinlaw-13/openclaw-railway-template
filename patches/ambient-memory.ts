@@ -60,7 +60,7 @@ try:
         if collection.count() == 0:
             continue
 
-        n = 5 if col_name == "memory_summaries" else 3
+        n = 15  # Get plenty, filter by distance + chars later
         results = collection.query(
             query_texts=["${safeQuery}"],
             n_results=n,
@@ -84,7 +84,7 @@ try:
                 })
 
     all_chunks.sort(key=lambda x: x["distance"])
-    print(json.dumps(all_chunks[:7]))
+    print(json.dumps(all_chunks))
 except Exception as e:
     print(json.dumps({"error": str(e)}))
 `;
