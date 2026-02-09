@@ -335,19 +335,19 @@ app.post("/hooks/gmail-push", async (req, res) => {
       await ensureGatewayRunning();
     }
 
-    // Wake the main session immediately to process the email
-    const wakeRes = await fetch(`${GATEWAY_TARGET}/hooks/wake`, {
+    // Deliver to /hooks/email — this triggers an isolated agent session
+    // in Hogar topic 54 (configured in openclaw.json hooks.mappings)
+    const hookRes = await fetch(`${GATEWAY_TARGET}/hooks/email`, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain",
         "Authorization": `Bearer ${OPENCLAW_GATEWAY_TOKEN}`,
       },
       body: JSON.stringify({
-        text: `📬 GMAIL PUSH: New email in ${emailAddress} (historyId: ${historyId}). Check inbox immediately. Read latest unread emails using Gmail API (.venvs/sheets/bin/python + .credentials/gmail-oauth-*.json). Check if sender is in job-search/conversation-tracker.json. If job search reply: notify Diego in Hogar topic 54 (-1003864711391:54). If not: brief note in Factory General (-1003727153708:1). Update job-search/gmail-history-id.json.`,
-        mode: "now"
+        text: `📬 Gmail push notification: new email in ${emailAddress} (historyId: ${historyId}). Check inbox immediately using Gmail API. Read /data/workspace/job-search/WORKFLOW.md for context. Use /data/workspace/.venvs/sheets/bin/python with credentials in /data/workspace/.credentials/gmail-oauth-*.json. Read latest unread emails, check if sender is in job-search/conversation-tracker.json. Respond if appropriate. Update job-search/gmail-history-id.json.`
       }),
     });
-    console.log(`[gmail-push] Wake sent, status: ${wakeRes.status}`);
+    console.log(`[gmail-push] Hook delivered, status: ${hookRes.status}`);
 
     res.status(200).json({ ok: true });
   } catch (err) {
