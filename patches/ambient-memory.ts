@@ -1,11 +1,12 @@
 /**
- * Ambient Memory Module — V2 (No LLM, direct semantic search)
+ * Ambient Memory Module — V3 (Summaries-first, raw fallback)
  *
- * Passes the incoming message directly to ChromaDB as a query.
- * ChromaDB's all-MiniLM-L6-v2 embedding model handles semantic similarity natively.
- * No Haiku, no API key, no external dependencies. Just local vector search.
+ * Searches ChromaDB collections in priority order:
+ * 1. memory_summaries (dense, Haiku-generated topic summaries)
+ * 2. telegram_memory + workspace_memory (raw transcripts, fallback)
  *
- * Searches both telegram_memory and workspace_memory collections in .vector-db/
+ * Uses semantic similarity via all-MiniLM-L6-v2 embeddings.
+ * No external API calls at query time. Just local vector search.
  */
 
 import { execFileSync } from "node:child_process";
@@ -16,11 +17,12 @@ const WORKSPACE_DIR = process.env.OPENCLAW_WORKSPACE ?? "/data/workspace";
 const CHROMA_VENV = path.join(WORKSPACE_DIR, ".venvs/vector-memory/bin/python3");
 const CHROMA_DB_PATH = path.join(WORKSPACE_DIR, ".vector-db");
 const SEARCH_TIMEOUT_MS = 5000;
-const MAX_CONTEXT_CHARS = 2000;
+const MAX_CONTEXT_CHARS = 2500;
 const MIN_MESSAGE_LENGTH = 2;
+const MAX_DISTANCE = 0.8;
 
 /**
- * Search ChromaDB for relevant memory chunks using the raw message as query.
+ * Search ChromaDB: summaries first, raw as fallback.
  */
 function searchMemory(messageText: string): string[] {
   const query = messageText
@@ -45,17 +47,23 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 try:
     import chromadb
     client = chromadb.PersistentClient(path="${CHROMA_DB_PATH}")
+
+    # Priority order: summaries first, then raw
+    priority_collections = ["memory_summaries", "telegram_memory", "workspace_memory"]
     all_chunks = []
-    for col_name in ["telegram_memory", "workspace_memory"]:
+
+    for col_name in priority_collections:
         try:
             collection = client.get_collection(col_name)
         except Exception:
             continue
         if collection.count() == 0:
             continue
+
+        n = 5 if col_name == "memory_summaries" else 3
         results = collection.query(
             query_texts=["${safeQuery}"],
-            n_results=5,
+            n_results=n,
             include=["documents", "metadatas", "distances"]
         )
         if results and results["documents"]:
@@ -63,11 +71,20 @@ try:
                 dist = results["distances"][0][i] if results["distances"] else None
                 meta = results["metadatas"][0][i] if results["metadatas"] else {}
                 source = meta.get("source", col_name)
-                if dist is not None and dist > 1.5:
+                is_summary = col_name == "memory_summaries"
+                if dist is not None and dist > ${MAX_DISTANCE}:
                     continue
-                all_chunks.append({"text": doc[:400], "source": source, "distance": dist or 99})
+                # Summaries get a distance bonus (prefer them over raw)
+                effective_dist = (dist * 0.8) if is_summary else dist
+                all_chunks.append({
+                    "text": doc[:400],
+                    "source": source,
+                    "distance": effective_dist or 99,
+                    "type": "summary" if is_summary else "raw"
+                })
+
     all_chunks.sort(key=lambda x: x["distance"])
-    print(json.dumps(all_chunks[:5]))
+    print(json.dumps(all_chunks[:7]))
 except Exception as e:
     print(json.dumps({"error": str(e)}))
 `;
@@ -78,14 +95,13 @@ except Exception as e:
       env: { ...process.env, PYTHONIOENCODING: "utf-8" },
     }).trim();
 
-    // Filter out progress bar lines from chromadb/onnx downloads
     const jsonLine = result.split("\n").filter((l) => l.startsWith("[") || l.startsWith("{")).pop();
     if (!jsonLine) {
       return [];
     }
 
     const parsed = JSON.parse(jsonLine) as
-      | Array<{ text: string; source: string; distance: number }>
+      | Array<{ text: string; source: string; distance: number; type: string }>
       | { error: string };
 
     if ("error" in parsed) {
@@ -107,9 +123,7 @@ except Exception as e:
 }
 
 /**
- * Main entry point: search ChromaDB with the message text, return context block.
- * Returns empty string if no relevant context found.
- * Fault-tolerant — failure just means no extra context.
+ * Main entry point. Fault-tolerant — failure = no extra context.
  */
 export async function resolveAmbientMemory(messageText: string): Promise<string> {
   try {
@@ -117,7 +131,7 @@ export async function resolveAmbientMemory(messageText: string): Promise<string>
       return "";
     }
 
-    // Skip heartbeats, system events, crons, and hooks — only inject for human messages
+    // Skip heartbeats, system events, crons, and hooks
     const lower = messageText.toLowerCase();
     if (
       lower.includes("heartbeat") ||
