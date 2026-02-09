@@ -117,6 +117,19 @@ export async function resolveAmbientMemory(messageText: string): Promise<string>
       return "";
     }
 
+    // Skip heartbeats, system events, crons, and hooks — only inject for human messages
+    const lower = messageText.toLowerCase();
+    if (
+      lower.includes("heartbeat") ||
+      lower.includes("self-ping keepalive") ||
+      lower.includes("read heartbeat.md") ||
+      lower.includes("cron job") ||
+      lower.includes("hook hook:") ||
+      lower.startsWith("system:")
+    ) {
+      return "";
+    }
+
     const chunks = searchMemory(messageText);
     if (chunks.length === 0) {
       return "";
