@@ -72,10 +72,11 @@ try:
                 meta = results["metadatas"][0][i] if results["metadatas"] else {}
                 source = meta.get("source", col_name)
                 is_summary = col_name == "memory_summaries"
-                if dist is not None and dist > ${MAX_DISTANCE}:
+                max_dist = 1.2 if is_summary else ${MAX_DISTANCE}
+                if dist is not None and dist > max_dist:
                     continue
-                # Summaries get a distance bonus (prefer them over raw)
-                effective_dist = (dist * 0.8) if is_summary else dist
+                # Summaries get a strong distance bonus (prefer them over raw)
+                effective_dist = (dist * 0.5) if is_summary else dist
                 all_chunks.append({
                     "text": doc[:400],
                     "source": source,
