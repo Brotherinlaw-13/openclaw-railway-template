@@ -344,7 +344,18 @@ app.post("/hooks/gmail-push", async (req, res) => {
         "Authorization": `Bearer ${OPENCLAW_GATEWAY_TOKEN}`,
       },
       body: JSON.stringify({
-        text: `📬 Gmail push notification: new email in ${emailAddress} (historyId: ${historyId}). Check inbox immediately using Gmail API. Read /data/workspace/job-search/WORKFLOW.md for context. Use /data/workspace/.venvs/sheets/bin/python with credentials in /data/workspace/.credentials/gmail-oauth-*.json. Read latest unread emails, check if sender is in job-search/conversation-tracker.json. Respond if appropriate. Update job-search/gmail-history-id.json.`
+        text: `📬 Gmail push notification: new email in ${emailAddress} (historyId: ${historyId}).
+
+INSTRUCTIONS:
+1. Run: /data/workspace/.venvs/sheets/bin/python /data/workspace/scripts/gmail-check-inbox.py --hours 1
+2. Read the output JSON. Each email has: threadId, messageIdHeader, fromEmail, subject, snippet
+3. Check if any sender matches job-search/conversation-tracker.json
+4. If replying, use gmail-send.py with THREADING: --thread-id <threadId> --in-reply-to <messageIdHeader> --references <messageIdHeader> --subject "Re: <original subject>"
+5. Read /data/workspace/job-search/WORKFLOW.md for tone and rules
+6. Notify Diego in Telegram Factory topic 4752 (chat: -1003727153708, threadId: 4752) with summary
+7. Do NOT notify in Hogar. Use Factory topic 4752 ONLY.
+
+IMPORTANT: Always reply in the same email thread. Never send a new email.`
       }),
     });
     console.log(`[gmail-push] Hook delivered, status: ${hookRes.status}`);
