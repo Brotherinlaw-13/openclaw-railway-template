@@ -330,6 +330,11 @@ app.post("/hooks/gmail-push", async (req, res) => {
 
     console.log(`[gmail-push] Notification for ${emailAddress}, historyId: ${historyId}`);
 
+    // Ensure gateway is running before calling its API
+    if (isConfigured()) {
+      await ensureGatewayRunning();
+    }
+
     // Create an immediate one-shot cron job that spawns an isolated session
     const cronPayload = {
       name: `📬 Email notification (${historyId})`,
