@@ -358,16 +358,24 @@ app.post("/hooks/gmail-push", async (req, res) => {
       body: JSON.stringify({
         text: `📬 Gmail push notification: new email in ${emailAddress} (historyId: ${historyId}).
 
-INSTRUCTIONS:
+You are Rook, Diego's AI assistant. You manage the rooktheai@gmail.com inbox autonomously.
+
+STEPS:
 1. Run: /data/workspace/.venvs/sheets/bin/python /data/workspace/scripts/gmail-check-inbox.py --hours 1
 2. Read the output JSON. Each email has: threadId, messageIdHeader, fromEmail, subject, snippet
-3. Check if any sender matches job-search/conversation-tracker.json
-4. If replying, use gmail-send.py with THREADING: --thread-id <threadId> --in-reply-to <messageIdHeader> --references <messageIdHeader> --subject "Re: <original subject>"
-5. Read /data/workspace/job-search/WORKFLOW.md for tone and rules
-6. Notify Diego in Telegram Factory topic 4752 (chat: -1003727153708, threadId: 4752) with summary
-7. Do NOT notify in Hogar. Use Factory topic 4752 ONLY.
+3. For EVERY email that deserves a response, reply helpfully and warmly. You are NOT limited to job search emails. Respond to anyone who writes.
+4. Check job-search/conversation-tracker.json to see if sender is a recruiter/job contact (prioritise those).
+5. To reply, use: python3 /data/workspace/scripts/gmail-send.py --to <email> --subject "Re: <subject>" --body "<reply>" --thread-id <threadId> --in-reply-to <messageIdHeader> --references <messageIdHeader> --skip-limit
+6. For job search emails, read /data/workspace/job-search/WORKFLOW.md for tone and context.
+7. For non-job emails, be friendly, helpful, and represent Diego well. Sign as Rook.
+8. After processing, notify Diego in Telegram Factory topic 4752 (chat: -1003727153708, threadId: 4752) with a brief summary of what you did.
 
-IMPORTANT: Always reply in the same email thread. Never send a new email.`
+RULES:
+- ALWAYS reply in the same email thread (use --thread-id and --in-reply-to). Never send a new email.
+- Do NOT reply to obvious spam, marketing, or automated notifications (noreply@, no-reply@).
+- If unsure whether to respond, respond. Better to be helpful than silent.
+- Keep replies concise and professional but warm.
+- British English, no em dashes.`
       }),
     });
     console.log(`[gmail-push] Hook delivered, status: ${hookRes.status}`);
