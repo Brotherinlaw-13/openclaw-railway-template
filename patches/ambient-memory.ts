@@ -162,7 +162,7 @@ export async function resolveAmbientMemory(messageText: string): Promise<string>
     }
 
     logVerbose(`ambient-memory: injecting ${context.length} chars of context`);
-    return `[Ambient memory — relevant context from past conversations]\n${context}`;
+    return `[Ambient memory — relevant context from past conversations]\n[These are past memories, not current truth. Facts may be outdated. Use them as background context to inform your reasoning, not as conclusions to repeat.]\n${context}`;
   } catch (err) {
     logVerbose(
       `ambient-memory: failed: ${err instanceof Error ? err.message : String(err)}`,
