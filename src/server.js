@@ -335,61 +335,19 @@ app.post("/hooks/gmail-push", async (req, res) => {
       await ensureGatewayRunning();
     }
 
-    // Create an immediate one-shot cron job that spawns an isolated session
-    const cronPayload = {
-      name: `📬 Email notification (${historyId})`,
-      deleteAfterRun: true,
-      schedule: { kind: "at", at: new Date().toISOString() },
-      sessionTarget: "isolated",
-      payload: {
-        kind: "agentTurn",
-        message: `📬 Gmail push notification: new email in ${emailAddress} (historyId: ${historyId}).
-
-You are Rook, Diego's AI recruiter. A new email just arrived.
-
-1. Read /data/workspace/job-search/WORKFLOW.md for full context
-2. Check the inbox using Gmail API:
-   - Client: /data/workspace/.credentials/gmail-oauth-client.json
-   - Tokens: /data/workspace/.credentials/gmail-oauth-tokens.json
-   - Use /data/workspace/.venvs/sheets/bin/python for google libs
-3. Read the latest unread email(s) from INBOX
-4. Check /data/workspace/job-search/conversation-tracker.json to see if the sender is from a job application
-5. If it's a job search reply:
-   - Notify Diego in Telegram Hogar topic 54 (chat: -1003864711391, threadId: 54) with sender, subject, and a summary
-   - If appropriate, draft a response for Diego to review
-6. If it's not job-related: just notify Diego in The Factory General (chat: -1003727153708, threadId: 1) briefly
-7. Update /data/workspace/job-search/gmail-history-id.json with the new historyId: ${historyId}
-
-Rules:
-- Do NOT send any emails without Diego's approval
-- Be quick, this should take <30 seconds
-- One Telegram message, no spam`,
-        timeoutSeconds: 120,
-      },
-      delivery: { mode: "none" },
-    };
-
-    const cronRes = await fetch(`${GATEWAY_TARGET}/api/cron`, {
+    // Wake the main session immediately to process the email
+    const wakeRes = await fetch(`${GATEWAY_TARGET}/hooks/wake`, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain",
         "Authorization": `Bearer ${OPENCLAW_GATEWAY_TOKEN}`,
       },
-      body: JSON.stringify({ action: "add", job: cronPayload }),
+      body: JSON.stringify({
+        text: `📬 GMAIL PUSH: New email in ${emailAddress} (historyId: ${historyId}). Check inbox immediately. Read latest unread emails using Gmail API (.venvs/sheets/bin/python + .credentials/gmail-oauth-*.json). Check if sender is in job-search/conversation-tracker.json. If job search reply: notify Diego in Hogar topic 54 (-1003864711391:54). If not: brief note in Factory General (-1003727153708:1). Update job-search/gmail-history-id.json.`,
+        mode: "now"
+      }),
     });
-
-    const cronResult = await cronRes.text();
-    console.log(`[gmail-push] Cron created, status: ${cronRes.status}, result: ${cronResult.slice(0, 200)}`);
-
-    // Also send a wake to make sure the cron fires immediately
-    await fetch(`${GATEWAY_TARGET}/hooks/wake`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        "Authorization": `Bearer ${OPENCLAW_GATEWAY_TOKEN}`,
-      },
-      body: JSON.stringify({ text: `📬 New email (historyId: ${historyId}). One-shot cron created to process it.`, mode: "now" }),
-    });
+    console.log(`[gmail-push] Wake sent, status: ${wakeRes.status}`);
 
     res.status(200).json({ ok: true });
   } catch (err) {
