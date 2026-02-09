@@ -319,6 +319,30 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 
+// Gmail Pub/Sub push notifications → wake the gateway
+app.post("/hooks/gmail-push", async (req, res) => {
+  try {
+    // Pub/Sub sends { message: { data: base64, ... } }
+    const data = req.body?.message?.data;
+    const decoded = data ? JSON.parse(Buffer.from(data, "base64").toString()) : {};
+    const wakeText = `📬 New email for ${decoded.emailAddress || "rooktheai@gmail.com"} (historyId: ${decoded.historyId}). Check inbox and process any job search replies. Read /data/workspace/job-search/WORKFLOW.md for context.`;
+
+    const wakeRes = await fetch(`${GATEWAY_TARGET}/hooks/wake`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain",
+        "Authorization": `Bearer ${OPENCLAW_GATEWAY_TOKEN}`,
+      },
+      body: JSON.stringify({ text: wakeText, mode: "now" }),
+    });
+    console.log(`[gmail-push] Wake sent, status: ${wakeRes.status}`);
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("[gmail-push] Error:", err);
+    res.status(200).json({ ok: false, error: String(err) }); // 200 to prevent Pub/Sub retry spam
+  }
+});
+
 // Minimal health endpoint for Railway.
 app.get("/setup/healthz", (_req, res) => res.json({ ok: true }));
 
