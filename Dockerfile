@@ -32,6 +32,12 @@ RUN set -eux; \
     sed -i -E 's/"openclaw"[[:space:]]*:[[:space:]]*"workspace:[^"]+"/"openclaw": "*"/g' "$f"; \
   done
 
+# --- Ambient Memory Patch ---
+COPY patches/ambient-memory.ts src/auto-reply/reply/ambient-memory.ts
+COPY patches/get-reply-run.patch /tmp/get-reply-run.patch
+RUN git apply /tmp/get-reply-run.patch
+# --- End Ambient Memory Patch ---
+
 RUN pnpm install --no-frozen-lockfile
 RUN pnpm build
 ENV OPENCLAW_PREFER_PNPM=1

@@ -1,0 +1,24 @@
+diff --git a/src/auto-reply/reply/get-reply-run.ts b/src/auto-reply/reply/get-reply-run.ts
+index 7531622..ddd372e 100644
+--- a/src/auto-reply/reply/get-reply-run.ts
++++ b/src/auto-reply/reply/get-reply-run.ts
+@@ -37,6 +37,7 @@ import {
+ } from "../thinking.js";
+ import { SILENT_REPLY_TOKEN } from "../tokens.js";
+ import { runReplyAgent } from "./agent-runner.js";
++import { resolveAmbientMemory } from "./ambient-memory.js";
+ import { applySessionHints } from "./body.js";
+ import { buildGroupIntro } from "./groups.js";
+ import { resolveQueueSettings } from "./queue.js";
+@@ -228,6 +229,11 @@ export async function runPreparedReply(
+     isNewSession,
+     prefixedBodyBase,
+   });
++  // Ambient Memory: extract keywords → search ChromaDB → inject context
++  const ambientContext = await resolveAmbientMemory(baseBody);
++  if (ambientContext) {
++    prefixedBodyBase = `${ambientContext}\n\n${prefixedBodyBase}`;
++  }
+   prefixedBodyBase = appendUntrustedContext(prefixedBodyBase, sessionCtx.UntrustedContext);
+   const threadStarterBody = ctx.ThreadStarterBody?.trim();
+   const threadStarterNote =
